@@ -8,9 +8,9 @@ on:
         required: false
         default: ""
       default_branch:
-        description: "Default branch name"
+        description: "Default branch name (leave blank to auto-detect)"
         required: false
-        default: "main"
+        default: ""
       discord_announce:
         description: "Announce on Discord when done?"
         type: boolean
