@@ -7,6 +7,6 @@
     "harden": "node scripts/harden.js"
   },
   "dependencies": {
-    "@octokit/rest": "^20.1.1"
+    "@octokit/rest": "^22.0.1"
   }
 }
