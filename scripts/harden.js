@@ -70,12 +70,11 @@ async function upsertFile(filePath, content, commitMessage, defaultBranch) {
 
 async function ensureLabel(name, color, description) {
   try {
-    await octokit.issues.getLabel({ owner, repo, name });
     await octokit.issues.updateLabel({ owner, repo, name, color, description });
     console.log(`  ↺  Label: ${name}`);
   } catch (e) {
     if (e.status !== 404) {
-      console.warn(`  !  Could not upsert label "${name}": ${e.message}`);
+      console.warn(`  !  Could not update label "${name}": ${e.message}`);
       return;
     }
     try {
