@@ -2,6 +2,15 @@
 // Requires: GH_TOKEN (PAT with repo scope), TARGET_REPO (owner/repo or GitHub URL)
 
 const { Octokit } = require("@octokit/rest");
+const fs = require("fs");
+const path = require("path");
+
+const TEMPLATES_DIR = path.join(__dirname, "../templates");
+
+function loadTemplate(filePath, vars) {
+  const raw = fs.readFileSync(path.join(TEMPLATES_DIR, filePath), "utf8");
+  return raw.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
 
 const octokit = new Octokit({ auth: process.env.GH_TOKEN });
 
@@ -156,221 +165,20 @@ async function applyLabels() {
 async function applyCommunityFiles(defaultBranch) {
   console.log("📄 Writing community files...");
 
-  const repoUrl = `https://github.com/${owner}/${repo}`;
-  const desc = projectDescription || `${repo} — an open-source project`;
-
-  // CONTRIBUTING.md
-  const contributing = `# Contributing to ${repo}
-
-Thanks for your interest in contributing! This document explains how to get involved.
-
-## Ways to contribute
-
-- **Report bugs** — open an issue with the \`bug\` label
-- **Request features** — open an issue with the \`enhancement\` label
-- **Fix issues** — look for \`good first issue\` or \`help wanted\` labels
-- **Improve docs** — typos, clarity, examples, anything helps
-- **Review PRs** — feedback from fresh eyes is always valuable
-
-## Getting started
-
-1. **Fork** the repository
-2. **Clone** your fork: \`git clone https://github.com/YOUR_USERNAME/${repo}.git\`
-3. **Create a branch**: \`git checkout -b feat/your-feature-name\`
-4. Make your changes
-5. **Push** to your fork and **open a Pull Request** against \`${defaultBranch}\`
-
-## Branch naming
-
-| Type | Pattern |
-|------|---------|
-| Feature | \`feat/short-description\` |
-| Bug fix | \`fix/short-description\` |
-| Docs | \`docs/short-description\` |
-| Chore | \`chore/short-description\` |
-
-## Pull request checklist
-
-- [ ] Branch is up to date with \`${defaultBranch}\`
-- [ ] Description explains *what* and *why*, not just *what*
-- [ ] Tests added or updated if applicable
-- [ ] No unrelated changes included
-
-## Asking for the contributor role
-
-If you're a member of the Discord and want triage or write access, open an issue titled **"Contributor access request"** and briefly describe what you'd like to work on. We'll add you after your first merged PR.
-
-## Commit style
-
-We use [Conventional Commits](https://www.conventionalcommits.org/):
-
-\`\`\`
-feat: add dark mode support
-fix: handle null pointer in parser
-docs: fix typo in README
-chore: bump dependencies
-\`\`\`
-
-## Code of conduct
-
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Be kind.
-
----
-
-Questions? Drop into the Discord or open a discussion.
-`;
-
-  // CODE_OF_CONDUCT.md (Contributor Covenant 2.1 summary)
-  const coc = `# Contributor Covenant Code of Conduct
-
-## Our Pledge
-
-We as members, contributors, and maintainers pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity, level of experience, nationality, personal appearance, race, religion, or sexual identity.
-
-## Our Standards
-
-**Positive behaviour includes:**
-- Using welcoming and inclusive language
-- Being respectful of differing viewpoints
-- Gracefully accepting constructive criticism
-- Focusing on what is best for the community
-
-**Unacceptable behaviour includes:**
-- Harassment, trolling, or personal attacks
-- Publishing others' private information without consent
-- Any conduct that could reasonably be considered inappropriate
-
-## Enforcement
-
-Instances of unacceptable behaviour may be reported by opening an issue or contacting a maintainer directly. All complaints will be reviewed and investigated.
-
-This Code of Conduct is adapted from the [Contributor Covenant v2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
-`;
-
-  // SECURITY.md
-  const security = `# Security Policy
-
-## Reporting a vulnerability
-
-**Please do not open a public issue for security vulnerabilities.**
-
-Report security issues privately by emailing a maintainer (see profile) or via [GitHub's private vulnerability reporting](${repoUrl}/security/advisories/new).
-
-Include:
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-
-We aim to acknowledge reports within 48 hours and provide a timeline within 7 days.
-`;
-
-  // PR template
-  const prTemplate = `## What does this PR do?
-
-<!-- Briefly describe the change and why -->
-
-## Related issue
-
-Closes #
-
-## Type of change
-
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation
-- [ ] Refactor / chore
-
-## Checklist
-
-- [ ] I've read [CONTRIBUTING.md](../CONTRIBUTING.md)
-- [ ] My branch is up to date with \`${defaultBranch}\`
-- [ ] I've added or updated tests where applicable
-- [ ] My commits follow the conventional commit style
-
-## Screenshots / context
-
-<!-- If applicable -->
-`;
-
-  // Issue templates
-  const bugTemplate = `---
-name: 🐛 Bug report
-about: Something is broken
-labels: bug
----
-
-**Describe the bug**
-<!-- A clear description of what is wrong -->
-
-**To reproduce**
-1. 
-2. 
-3. 
-
-**Expected behaviour**
-<!-- What should have happened -->
-
-**Actual behaviour**
-<!-- What actually happened -->
-
-**Environment**
-- OS:
-- Version / commit:
-
-**Additional context**
-<!-- Logs, screenshots, etc. -->
-`;
-
-  const featureTemplate = `---
-name: ✨ Feature request
-about: Propose a new feature or improvement
-labels: enhancement
----
-
-**Problem to solve**
-<!-- What problem does this feature address? -->
-
-**Proposed solution**
-<!-- How would you solve it? -->
-
-**Alternatives considered**
-<!-- Any other approaches you thought about? -->
-
-**Additional context**
-<!-- Mockups, references, related issues -->
-`;
-
-  const contributorTemplate = `---
-name: 🤝 Contributor access request
-about: Request triage or write access
-labels: question
----
-
-**Discord username**
-<!-- Your Discord handle so we can match you -->
-
-**What would you like to work on?**
-<!-- Briefly describe what you're interested in contributing -->
-
-**Have you made any contributions yet?**
-- [ ] Yes — linked PR/issue: 
-- [ ] No, this is my first step
-
-**Anything else?**
-`;
+  const vars = { repo, defaultBranch, repoUrl: `https://github.com/${owner}/${repo}` };
 
   const files = [
-    ["CONTRIBUTING.md",                            contributing,     "docs: add CONTRIBUTING.md"],
-    ["CODE_OF_CONDUCT.md",                         coc,              "docs: add CODE_OF_CONDUCT.md"],
-    ["SECURITY.md",                                security,         "docs: add SECURITY.md"],
-    [".github/PULL_REQUEST_TEMPLATE.md",           prTemplate,       "chore: add PR template"],
-    [".github/ISSUE_TEMPLATE/bug_report.md",       bugTemplate,      "chore: add bug report template"],
-    [".github/ISSUE_TEMPLATE/feature_request.md",  featureTemplate,  "chore: add feature request template"],
-    [".github/ISSUE_TEMPLATE/contributor_access.md", contributorTemplate, "chore: add contributor access template"],
+    ["CONTRIBUTING.md",                              "CONTRIBUTING.md",                              "docs: add CONTRIBUTING.md"],
+    ["CODE_OF_CONDUCT.md",                           "CODE_OF_CONDUCT.md",                           "docs: add CODE_OF_CONDUCT.md"],
+    ["SECURITY.md",                                  "SECURITY.md",                                  "docs: add SECURITY.md"],
+    [".github/PULL_REQUEST_TEMPLATE.md",             "pr_template/PULL_REQUEST_TEMPLATE.md",         "chore: add PR template"],
+    [".github/ISSUE_TEMPLATE/bug_report.md",         "issue_templates/bug_report.md",                "chore: add bug report template"],
+    [".github/ISSUE_TEMPLATE/feature_request.md",    "issue_templates/feature_request.md",           "chore: add feature request template"],
+    [".github/ISSUE_TEMPLATE/contributor_access.md", "issue_templates/contributor_access.md",        "chore: add contributor access template"],
   ];
 
-  for (const [filePath, content, message] of files) {
-    await upsertFile(filePath, content, message, defaultBranch);
+  for (const [dest, templateFile, message] of files) {
+    await upsertFile(dest, loadTemplate(templateFile, vars), message, defaultBranch);
   }
   console.log("");
 }
