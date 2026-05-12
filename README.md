@@ -7,10 +7,15 @@ A GitHub Actions toolkit that transforms any repo into a public contribution-rea
 | Step | What gets applied |
 |------|-------------------|
 | 🔒 Branch protection | Requires PR + 1 approval, blocks force-push and deletion, requires conversation resolution |
-| 🏷️ Labels | Full label taxonomy: contribution tiers, type, status, priority |
-| 📄 Community files | CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md |
-| 📋 Templates | PR template, bug report, feature request, contributor access request |
-| ⚙️ Repo settings | Squash-merge only, auto-delete branches, issues on |
+| 🏷️ Labels | 19-label taxonomy: contribution tiers, type, status, priority |
+| 📄 Community files | LICENSE (MIT), CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md |
+| 📋 Templates | PR template, bug report, feature request, contributor access request, blank issues disabled |
+| ⚙️ Repo settings | Squash-merge only, auto-delete branches, issues on, sets repo description |
+| 🤖 Dependabot | Weekly dependency updates for npm and GitHub Actions |
+| 🧹 Stale bot | Marks issues/PRs stale after 60 days, closes after 14 more |
+| 🏷️ Topics | Sets repo topics for discoverability |
+
+All steps are idempotent — re-running updates existing files and settings without duplicating anything.
 
 ## Setup
 
@@ -18,7 +23,7 @@ A GitHub Actions toolkit that transforms any repo into a public contribution-rea
 
 Go to **GitHub → Settings → Developer Settings → Personal access tokens (classic)** and create a token with:
 - `repo` scope (full)
-- `admin:repo_hook` if you want webhook control
+- `workflow` scope (required to push the stale bot workflow to target repos)
 
 ### 2. Add secrets to your hardening repo
 
@@ -29,22 +34,38 @@ Go to **GitHub → Settings → Developer Settings → Personal access tokens (c
 
 ### 3. Run it
 
-**Single repo:** Go to Actions → "Harden Repository" → Run workflow. Fill in the target repo as `owner/repo`.
+Go to **Actions → "Harden Repository for Public Contributions" → Run workflow.**
 
-**Batch mode:** Add repos to `repos.txt` (one per line), set `if: false` to `if: true` in the `harden-batch` job, and trigger the workflow.
+| Input | Description |
+|-------|-------------|
+| `target_repo` | `owner/repo` or any GitHub URL — leave blank to harden this repo itself |
+| `default_branch` | Leave blank to auto-detect (`main`, `master`, etc.) |
+| `project_description` | Sets the repo description on GitHub and in generated files |
+| `topics` | Comma-separated topics e.g. `automation, github-actions` |
+| `discord_announce` | Posts a Discord embed when done (requires `DISCORD_WEBHOOK` secret) |
 
-**This repo itself:** Leave `target_repo` blank to harden the repo the workflow lives in.
+**Batch mode:** Add repos to `repos.txt` (one per line), flip `if: false` to `if: true` in the `harden-batch` job, and trigger the workflow.
 
-## Customising after the run
+## Customising the templates
 
-The generated files are starting points — edit them to match your actual setup:
+All generated files are rendered from `templates/` — edit them there so your changes persist across re-runs on any repo:
 
-- `CONTRIBUTING.md` — add your real local dev setup commands
-- `SECURITY.md` — add your contact email
-- `.github/ISSUE_TEMPLATE/contributor_access.md` — adjust the criteria for granting access
+| Template | Destination | Dynamic vars |
+|----------|-------------|--------------|
+| `templates/LICENSE` | `LICENSE` | `{{year}}`, `{{ownerName}}` |
+| `templates/CONTRIBUTING.md` | `CONTRIBUTING.md` | `{{repo}}`, `{{defaultBranch}}` |
+| `templates/CODE_OF_CONDUCT.md` | `CODE_OF_CONDUCT.md` | — |
+| `templates/SECURITY.md` | `SECURITY.md` | `{{repoUrl}}` |
+| `templates/dependabot.yml` | `.github/dependabot.yml` | — |
+| `templates/pr_template/PULL_REQUEST_TEMPLATE.md` | `.github/PULL_REQUEST_TEMPLATE.md` | `{{defaultBranch}}` |
+| `templates/issue_templates/config.yml` | `.github/ISSUE_TEMPLATE/config.yml` | `{{repoUrl}}` |
+| `templates/issue_templates/bug_report.md` | `.github/ISSUE_TEMPLATE/bug_report.md` | — |
+| `templates/issue_templates/feature_request.md` | `.github/ISSUE_TEMPLATE/feature_request.md` | — |
+| `templates/issue_templates/contributor_access.md` | `.github/ISSUE_TEMPLATE/contributor_access.md` | — |
+| `templates/stale.yml` | `.github/workflows/stale.yml` | — |
 
 ## Discord integration
 
-When `discord_announce` is true and `DISCORD_WEBHOOK` is set, the workflow posts an embed to your Discord when hardening completes — useful if you're announcing a repo going public to your community.
+When `discord_announce` is checked and `DISCORD_WEBHOOK` is set, the workflow posts an embed to your Discord announcing the repo is open for contributions.
 
-To get a webhook URL: Discord channel → Edit Channel → Integrations → Webhooks → New Webhook.
+To get a webhook URL: Discord channel → **Edit Channel → Integrations → Webhooks → New Webhook.**
