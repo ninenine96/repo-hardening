@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_repo:
-        description: "Repo to harden (owner/repo). Leave blank to harden THIS repo."
+        description: "Repo to harden — owner/repo or full GitHub URL. Leave blank to harden THIS repo."
         required: false
         default: ""
       default_branch:

@@ -1,16 +1,29 @@
 // harden.js — applies branch protection, labels, and community files to a target repo
-// Requires: GH_TOKEN (PAT with repo scope), TARGET_REPO (owner/repo)
+// Requires: GH_TOKEN (PAT with repo scope), TARGET_REPO (owner/repo or GitHub URL)
 
 const { Octokit } = require("@octokit/rest");
 
 const octokit = new Octokit({ auth: process.env.GH_TOKEN });
 
-const [owner, repo] = (process.env.TARGET_REPO || "").split("/");
+function parseRepo(input) {
+  if (!input) return [null, null];
+  // Strip trailing slashes, .git suffix, query strings, fragments
+  const cleaned = input.trim().replace(/\.git$/, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
+  // Full URL: https://github.com/owner/repo or github.com/owner/repo (with or without protocol)
+  const urlMatch = cleaned.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (urlMatch) return [urlMatch[1], urlMatch[2]];
+  // owner/repo shorthand
+  const shortMatch = cleaned.match(/^([^/]+)\/([^/]+)$/);
+  if (shortMatch) return [shortMatch[1], shortMatch[2]];
+  return [null, null];
+}
+
+const [owner, repo] = parseRepo(process.env.TARGET_REPO);
 const defaultBranch = process.env.DEFAULT_BRANCH || "main";
 const projectDescription = process.env.PROJECT_DESCRIPTION || "";
 
 if (!owner || !repo) {
-  console.error("❌ TARGET_REPO must be set as owner/repo");
+  console.error("❌ TARGET_REPO must be owner/repo or a GitHub URL (e.g. https://github.com/owner/repo)");
   process.exit(1);
 }
 
