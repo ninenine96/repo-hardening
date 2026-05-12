@@ -1,0 +1,12 @@
+{
+  "name": "repo-hardening",
+  "version": "1.0.0",
+  "description": "GH Actions toolkit for hardening repos for public contributions",
+  "private": true,
+  "scripts": {
+    "harden": "node scripts/harden.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.1.1"
+  }
+}

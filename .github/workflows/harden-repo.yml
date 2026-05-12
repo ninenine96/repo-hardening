@@ -1,0 +1,109 @@
+name: 🔧 Harden Repository for Public Contributions
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Repo to harden (owner/repo). Leave blank to harden THIS repo."
+        required: false
+        default: ""
+      default_branch:
+        description: "Default branch name"
+        required: false
+        default: "main"
+      discord_announce:
+        description: "Announce on Discord when done?"
+        type: boolean
+        required: false
+        default: true
+      project_description:
+        description: "Short project description (used in generated files)"
+        required: false
+        default: ""
+
+jobs:
+  harden:
+    name: Apply contribution hardening
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout hardening toolkit
+        uses: actions/checkout@v4
+
+      - name: Resolve target repo
+        id: resolve
+        run: |
+          TARGET="${{ github.event.inputs.target_repo }}"
+          if [ -z "$TARGET" ]; then
+            TARGET="${{ github.repository }}"
+          fi
+          echo "repo=$TARGET" >> $GITHUB_OUTPUT
+          echo "owner=$(echo $TARGET | cut -d'/' -f1)" >> $GITHUB_OUTPUT
+          echo "name=$(echo $TARGET | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install @octokit/rest
+
+      - name: Run hardening script
+        env:
+          GH_TOKEN: ${{ secrets.HARDENING_PAT }}
+          TARGET_REPO: ${{ steps.resolve.outputs.repo }}
+          DEFAULT_BRANCH: ${{ github.event.inputs.default_branch }}
+          PROJECT_DESCRIPTION: ${{ github.event.inputs.project_description }}
+        run: node scripts/harden.js
+
+      - name: Announce on Discord
+        if: ${{ github.event.inputs.discord_announce == 'true' && secrets.DISCORD_WEBHOOK != '' }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO_NAME: ${{ steps.resolve.outputs.name }}
+          REPO_FULL: ${{ steps.resolve.outputs.repo }}
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"content\": null,
+              \"embeds\": [{
+                \"title\": \"🚀 New repo open for contributions!\",
+                \"description\": \"**$REPO_NAME** is now set up for public contributions. Check it out and get involved!\",
+                \"url\": \"https://github.com/$REPO_FULL\",
+                \"color\": 5814783,
+                \"fields\": [
+                  { \"name\": \"📋 How to contribute\", \"value\": \"Read the CONTRIBUTING.md in the repo\", \"inline\": true },
+                  { \"name\": \"🏷️ Good first issues\", \"value\": \"Check Issues tab for \\`good first issue\\` labels\", \"inline\": true }
+                ],
+                \"footer\": { \"text\": \"Repo hardening complete\" }
+              }]
+            }" \
+            "$DISCORD_WEBHOOK"
+
+  # Optional: run against a list of repos from a config file
+  harden-batch:
+    name: Batch harden from repos.txt
+    runs-on: ubuntu-latest
+    if: false  # Set to true and fill repos.txt to enable batch mode
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install @octokit/rest
+      - name: Harden each repo
+        env:
+          GH_TOKEN: ${{ secrets.HARDENING_PAT }}
+          DEFAULT_BRANCH: main
+        run: |
+          while IFS= read -r repo; do
+            [ -z "$repo" ] && continue
+            [[ "$repo" == \#* ]] && continue
+            echo "Hardening: $repo"
+            TARGET_REPO="$repo" node scripts/harden.js
+          done < repos.txt

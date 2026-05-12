@@ -1,0 +1,5 @@
+# List repos to harden in batch mode (one per line, format: owner/repo)
+# Lines starting with # are ignored
+# Example:
+# yourname/project-one
+# yourname/project-two
