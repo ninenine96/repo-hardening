@@ -17,7 +17,11 @@ on:
         required: false
         default: true
       project_description:
-        description: "Short project description (used in generated files)"
+        description: "Short project description (sets repo description and used in generated files)"
+        required: false
+        default: ""
+      topics:
+        description: "Comma-separated repo topics e.g. automation, github-actions (leave blank to skip)"
         required: false
         default: ""
 
@@ -50,7 +54,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install @octokit/rest@20.1.1
+        run: npm ci
 
       - name: Run hardening script
         env:
@@ -58,6 +62,7 @@ jobs:
           TARGET_REPO: ${{ steps.resolve.outputs.repo }}
           DEFAULT_BRANCH: ${{ github.event.inputs.default_branch }}
           PROJECT_DESCRIPTION: ${{ github.event.inputs.project_description }}
+          TOPICS: ${{ github.event.inputs.topics }}
         run: node scripts/harden.js
 
       - name: Announce on Discord
@@ -102,7 +107,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install @octokit/rest@20.1.1
+      - run: npm ci
       - name: Harden each repo
         env:
           GH_TOKEN: ${{ secrets.HARDENING_PAT }}

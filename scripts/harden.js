@@ -29,6 +29,7 @@ function parseRepo(input) {
 
 const [owner, repo] = parseRepo(process.env.TARGET_REPO);
 const projectDescription = process.env.PROJECT_DESCRIPTION || "";
+const topicsInput = process.env.TOPICS || "";
 
 if (!owner || !repo) {
   console.error("❌ TARGET_REPO must be owner/repo or a GitHub URL (e.g. https://github.com/owner/repo)");
@@ -40,6 +41,11 @@ async function resolveDefaultBranch() {
   const { data } = await octokit.repos.get({ owner, repo });
   console.log(`  ℹ  Auto-detected default branch: ${data.default_branch}`);
   return data.default_branch;
+}
+
+async function resolveOwnerName() {
+  const { data } = await octokit.users.getByUsername({ username: owner });
+  return data.name || owner;
 }
 
 // ─────────────────────────────────────────────
@@ -161,19 +167,30 @@ async function applyLabels() {
 // 3. Community files
 // ─────────────────────────────────────────────
 
-async function applyCommunityFiles(defaultBranch) {
+async function applyCommunityFiles(defaultBranch, ownerName) {
   console.log("📄 Writing community files...");
 
-  const vars = { repo, defaultBranch, repoUrl: `https://github.com/${owner}/${repo}` };
+  const vars = {
+    repo,
+    defaultBranch,
+    repoUrl: `https://github.com/${owner}/${repo}`,
+    description: projectDescription,
+    year: String(new Date().getFullYear()),
+    ownerName,
+  };
 
   const files = [
-    ["CONTRIBUTING.md",                              "CONTRIBUTING.md",                              "docs: add CONTRIBUTING.md"],
-    ["CODE_OF_CONDUCT.md",                           "CODE_OF_CONDUCT.md",                           "docs: add CODE_OF_CONDUCT.md"],
-    ["SECURITY.md",                                  "SECURITY.md",                                  "docs: add SECURITY.md"],
-    [".github/PULL_REQUEST_TEMPLATE.md",             "pr_template/PULL_REQUEST_TEMPLATE.md",         "chore: add PR template"],
-    [".github/ISSUE_TEMPLATE/bug_report.md",         "issue_templates/bug_report.md",                "chore: add bug report template"],
-    [".github/ISSUE_TEMPLATE/feature_request.md",    "issue_templates/feature_request.md",           "chore: add feature request template"],
-    [".github/ISSUE_TEMPLATE/contributor_access.md", "issue_templates/contributor_access.md",        "chore: add contributor access template"],
+    ["LICENSE",                                        "LICENSE",                                       "chore: add MIT license"],
+    ["CONTRIBUTING.md",                                "CONTRIBUTING.md",                               "docs: add CONTRIBUTING.md"],
+    ["CODE_OF_CONDUCT.md",                             "CODE_OF_CONDUCT.md",                            "docs: add CODE_OF_CONDUCT.md"],
+    ["SECURITY.md",                                    "SECURITY.md",                                   "docs: add SECURITY.md"],
+    [".github/dependabot.yml",                         "dependabot.yml",                                "chore: add Dependabot config"],
+    [".github/PULL_REQUEST_TEMPLATE.md",               "pr_template/PULL_REQUEST_TEMPLATE.md",          "chore: add PR template"],
+    [".github/ISSUE_TEMPLATE/config.yml",              "issue_templates/config.yml",                    "chore: disable blank issues"],
+    [".github/ISSUE_TEMPLATE/bug_report.md",           "issue_templates/bug_report.md",                 "chore: add bug report template"],
+    [".github/ISSUE_TEMPLATE/feature_request.md",      "issue_templates/feature_request.md",            "chore: add feature request template"],
+    [".github/ISSUE_TEMPLATE/contributor_access.md",   "issue_templates/contributor_access.md",         "chore: add contributor access template"],
+    [".github/workflows/stale.yml",                    "stale.yml",                                     "chore: add stale bot workflow"],
   ];
 
   for (const [dest, templateFile, message] of files) {
@@ -192,17 +209,33 @@ async function applyRepoSettings() {
     await octokit.repos.update({
       owner,
       repo,
+      ...(projectDescription ? { description: projectDescription } : {}),
       has_issues: true,
-      has_projects: false,   // flip to true if you use project boards
+      has_projects: false,
       has_wiki: false,
       allow_squash_merge: true,
-      allow_merge_commit: false,  // squash-only keeps history clean
+      allow_merge_commit: false,
       allow_rebase_merge: false,
       delete_branch_on_merge: true,
     });
     console.log("  ✓  Repo settings updated\n");
   } catch (e) {
     console.warn(`  !  Repo settings update failed: ${e.message}\n`);
+  }
+}
+
+async function applyTopics() {
+  if (!topicsInput) return;
+  const names = topicsInput
+    .split(",")
+    .map((t) => t.trim().toLowerCase().replace(/\s+/g, "-"))
+    .filter(Boolean);
+  console.log("🏷️  Applying topics...");
+  try {
+    await octokit.repos.replaceAllTopics({ owner, repo, names });
+    console.log(`  ✓  Topics set: ${names.join(", ")}\n`);
+  } catch (e) {
+    console.warn(`  !  Topics update failed: ${e.message}\n`);
   }
 }
 
@@ -228,12 +261,13 @@ async function printSummary() {
 
 (async () => {
   try {
-    const defaultBranch = await resolveDefaultBranch();
+    const [defaultBranch, ownerName] = await Promise.all([resolveDefaultBranch(), resolveOwnerName()]);
     console.log(`\n🔧 Hardening ${owner}/${repo} (branch: ${defaultBranch})\n`);
     await applyBranchProtection(defaultBranch);
     await applyLabels();
-    await applyCommunityFiles(defaultBranch);
+    await applyCommunityFiles(defaultBranch, ownerName);
     await applyRepoSettings();
+    await applyTopics();
     await printSummary();
   } catch (err) {
     console.error("❌ Hardening failed:", err.message);
