@@ -19,7 +19,6 @@ function parseRepo(input) {
 }
 
 const [owner, repo] = parseRepo(process.env.TARGET_REPO);
-const defaultBranch = process.env.DEFAULT_BRANCH || "main";
 const projectDescription = process.env.PROJECT_DESCRIPTION || "";
 
 if (!owner || !repo) {
@@ -27,13 +26,18 @@ if (!owner || !repo) {
   process.exit(1);
 }
 
-console.log(`\n🔧 Hardening ${owner}/${repo} (branch: ${defaultBranch})\n`);
+async function resolveDefaultBranch() {
+  if (process.env.DEFAULT_BRANCH) return process.env.DEFAULT_BRANCH;
+  const { data } = await octokit.repos.get({ owner, repo });
+  console.log(`  ℹ  Auto-detected default branch: ${data.default_branch}`);
+  return data.default_branch;
+}
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
 
-async function upsertFile(filePath, content, commitMessage) {
+async function upsertFile(filePath, content, commitMessage, defaultBranch) {
   let sha;
   try {
     const { data } = await octokit.repos.getContent({ owner, repo, path: filePath });
@@ -78,7 +82,7 @@ async function ensureLabel(name, color, description) {
 // 1. Branch protection
 // ─────────────────────────────────────────────
 
-async function applyBranchProtection() {
+async function applyBranchProtection(defaultBranch) {
   console.log("📌 Applying branch protection rules...");
   try {
     await octokit.repos.updateBranchProtection({
@@ -149,7 +153,7 @@ async function applyLabels() {
 // 3. Community files
 // ─────────────────────────────────────────────
 
-async function applyCommunityFiles() {
+async function applyCommunityFiles(defaultBranch) {
   console.log("📄 Writing community files...");
 
   const repoUrl = `https://github.com/${owner}/${repo}`;
@@ -366,7 +370,7 @@ labels: question
   ];
 
   for (const [filePath, content, message] of files) {
-    await upsertFile(filePath, content, message);
+    await upsertFile(filePath, content, message, defaultBranch);
   }
   console.log("");
 }
@@ -417,9 +421,11 @@ async function printSummary() {
 
 (async () => {
   try {
-    await applyBranchProtection();
+    const defaultBranch = await resolveDefaultBranch();
+    console.log(`\n🔧 Hardening ${owner}/${repo} (branch: ${defaultBranch})\n`);
+    await applyBranchProtection(defaultBranch);
     await applyLabels();
-    await applyCommunityFiles();
+    await applyCommunityFiles(defaultBranch);
     await applyRepoSettings();
     await printSummary();
   } catch (err) {
