@@ -61,12 +61,16 @@ jobs:
         run: node scripts/harden.js
 
       - name: Announce on Discord
-        if: ${{ github.event.inputs.discord_announce == 'true' && secrets.DISCORD_WEBHOOK != '' }}
+        if: github.event.inputs.discord_announce == 'true'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           REPO_NAME: ${{ steps.resolve.outputs.name }}
           REPO_FULL: ${{ steps.resolve.outputs.repo }}
         run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret not set, skipping."
+            exit 0
+          fi
           curl -H "Content-Type: application/json" \
             -d "{
               \"content\": null,
