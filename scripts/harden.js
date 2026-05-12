@@ -2,8 +2,6 @@
 // Requires: GH_TOKEN (PAT with repo scope), TARGET_REPO (owner/repo)
 
 const { Octokit } = require("@octokit/rest");
-const fs = require("fs");
-const path = require("path");
 
 const octokit = new Octokit({ auth: process.env.GH_TOKEN });
 
@@ -28,7 +26,8 @@ async function upsertFile(filePath, content, commitMessage) {
     const { data } = await octokit.repos.getContent({ owner, repo, path: filePath });
     sha = data.sha;
     console.log(`  ↺  Updating ${filePath}`);
-  } catch {
+  } catch (e) {
+    if (e.status !== 404) throw e;
     console.log(`  +  Creating ${filePath}`);
   }
 
@@ -48,12 +47,16 @@ async function ensureLabel(name, color, description) {
     await octokit.issues.getLabel({ owner, repo, name });
     await octokit.issues.updateLabel({ owner, repo, name, color, description });
     console.log(`  ↺  Label: ${name}`);
-  } catch {
+  } catch (e) {
+    if (e.status !== 404) {
+      console.warn(`  !  Could not upsert label "${name}": ${e.message}`);
+      return;
+    }
     try {
       await octokit.issues.createLabel({ owner, repo, name, color, description });
       console.log(`  +  Label: ${name}`);
-    } catch (e) {
-      console.warn(`  !  Could not create label "${name}": ${e.message}`);
+    } catch (ce) {
+      console.warn(`  !  Could not create label "${name}": ${ce.message}`);
     }
   }
 }
@@ -125,9 +128,7 @@ async function applyLabels() {
     { name: "priority: low",       color: "f9d0c4", description: "Nice to have" },
   ];
 
-  for (const l of labels) {
-    await ensureLabel(l.name, l.color, l.description);
-  }
+  await Promise.all(labels.map((l) => ensureLabel(l.name, l.color, l.description)));
   console.log("");
 }
 

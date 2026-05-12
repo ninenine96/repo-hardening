@@ -50,7 +50,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install @octokit/rest
+        run: npm install @octokit/rest@20.1.1
 
       - name: Run hardening script
         env:
@@ -89,17 +89,20 @@ jobs:
     name: Batch harden from repos.txt
     runs-on: ubuntu-latest
     if: false  # Set to true and fill repos.txt to enable batch mode
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install @octokit/rest
+      - run: npm install @octokit/rest@20.1.1
       - name: Harden each repo
         env:
           GH_TOKEN: ${{ secrets.HARDENING_PAT }}
-          DEFAULT_BRANCH: main
+          DEFAULT_BRANCH: ${{ github.event.inputs.default_branch }}
         run: |
           while IFS= read -r repo; do
             [ -z "$repo" ] && continue
